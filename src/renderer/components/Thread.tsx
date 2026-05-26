@@ -22,13 +22,14 @@ type Props = {
   onExport?: () => void;
   onUndo?: () => void;
   onRegenerate?: () => void;
+  onDebate?: () => void;
 };
 
 const FOLD_THRESHOLD = 50;
 
 export function Thread({
   messages, activePlan, busy, onDismissPlan, onDismissError,
-  onCopyMessage, onRetry, onEditResend, onQuickAction, onFixError, onExport, onUndo, onRegenerate,
+  onCopyMessage, onRetry, onEditResend, onQuickAction, onFixError, onExport, onUndo, onRegenerate, onDebate,
 }: Props) {
   const virtRef = useRef<VirtuosoHandle>(null);
   const userScrolledUp = useRef(false);
@@ -84,6 +85,7 @@ export function Thread({
         onRetry={onRetry}
         onEditResend={onEditResend}
         onRegenerate={onRegenerate}
+        onDebate={onDebate}
         onFixError={onFixError}
       />
     );

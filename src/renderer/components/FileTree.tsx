@@ -1,3 +1,4 @@
+import { fileIcon } from "../utils.js";
 // FileTree — directory listing with icons
 
 import { useState, useEffect } from "react";
@@ -28,7 +29,7 @@ export function FileTree({ rootPath, onSelectFile }: Props) {
     <div className="file-tree">
       {[...dirs, ...files].map((e, i) => (
         <div key={e.path} className={`file-tree-item ${i === focusedIdx ? "focused" : ""}`} onClick={() => onSelectFile(e.path)} title={e.path}>
-          <span className="file-tree-icon">{e.kind === "dir" ? "📁" : icon(e.name)}</span>
+          <span className="file-tree-icon">{e.kind === "dir" ? "📁" : fileIcon(e.name)}</span>
           <span className="file-tree-name">{e.name}</span>
         </div>
       ))}

@@ -27,7 +27,7 @@ function exportMarkdown(messages: ChatMessage[], sessionName?: string): string {
   return lines.join("\n");
 }
 import { onEvent, onExit, onResize, onFullscreen, sendCommand } from "./protocol.js";
-import type { IncomingEvent } from "../shared/protocol.js";
+import type { IncomingEvent, SettingsEvent } from "../shared/protocol.js";
 import { Composer } from "./components/Composer.js";
 import { Thread } from "./components/Thread.js";
 import { Sidebar } from "./components/Sidebar.js";
@@ -55,6 +55,7 @@ export function App() {
   const [showJobs, setShowJobs] = useState(false);
   const [gitBranch, setGitBranch] = useState<string | undefined>();
   const [injectedText, setInjectedText] = useState<string | null>(null);
+  const [fontScale, setFontScale] = useState(() => Number(localStorage.getItem("reasonix-font-scale") || "100"));
   const [theme, setTheme] = useState<string>(
     () => localStorage.getItem("reasonix-theme") || "dark"
   );
@@ -87,8 +88,8 @@ export function App() {
         sendCommand({ cmd: "skills_get" });
         sendCommand({ cmd: "memory_get" });
       }
-      if (event.type === "$settings") {
-        const ws = (event as any).workspaceDir;
+      if (event.type === "$settings" && "workspaceDir" in event) {
+        const ws = (event as SettingsEvent).workspaceDir;
         if (ws) window.electronAPI.gitBranch(ws).then((b) => setGitBranch(b ?? undefined)).catch(() => setGitBranch(undefined));
       }
     });
@@ -138,10 +139,26 @@ export function App() {
     }
   }, [state.busy]);
 
+  // Font zoom
+  useEffect(() => {
+    document.documentElement.style.setProperty("--font-scale", String(fontScale / 100));
+    localStorage.setItem("reasonix-font-scale", String(fontScale));
+  }, [fontScale]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        setFontScale((s) => Math.min(s + 10, 150));
+        return;
+      }
+      if (mod && e.key === "-") {
+        e.preventDefault();
+        setFontScale((s) => Math.max(s - 10, 70));
+        return;
+      }
       if (mod && e.key === "k") {
         e.preventDefault();
         setShowPalette((p) => !p);
@@ -342,6 +359,11 @@ export function App() {
                 sendCommand({ cmd: "user_input", text });
               }}
               onUndo={() => dispatch({ t: "undo_last" })}
+              onDebate={() => {
+                const debatePrompt = "Critique the above response. Point out any errors, missing edge cases, alternative approaches, or improvements.";
+                dispatch({ t: "send_user", text: debatePrompt });
+                sendCommand({ cmd: "user_input", text: debatePrompt });
+              }}
               onRegenerate={() => {
                 // Find last assistant turn and regenerate
                 const lastAsst = [...state.messages].reverse().find((m) => m.kind === "assistant");

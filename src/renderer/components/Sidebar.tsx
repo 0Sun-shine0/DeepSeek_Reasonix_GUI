@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { SessionInfo, McpSpecInfo, SkillInfo, MemoryEntryInfo } from "../../shared/protocol.js";
 import { FileTree } from "./FileTree.js";
 import { ContextPanel } from "./ContextPanel.js";
+import { StatsTab } from "./StatsTab.js";
 import type { ContextFile, ContextTokens, UsageStats } from "../state.js";
 import { useT } from "../locale.js";
 
@@ -36,7 +37,24 @@ export function Sidebar({
   onAddMcp, onRemoveMcp, onRemoveSkill, onRemoveMemory, onToggle,
 }: Props) {
   const { t } = useT();
-  const [tab, setTab] = useState<"files" | "context" | "sessions" | "mcp" | "skills" | "memory" | "notepads">("files");
+  const [tab, setTab] = useState<"files" | "context" | "sessions" | "mcp" | "skills" | "memory" | "notepads" | "stats">("files");
+  const [starred, setStarred] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("reasonix-starred") ?? "[]"); } catch { return []; }
+  });
+  const [sessionQuery, setSessionQuery] = useState("");
+  const toggleStar = (name: string) => {
+    setStarred((prev) => {
+      const next = prev.includes(name) ? prev.filter((s) => s !== name) : [name, ...prev];
+      localStorage.setItem("reasonix-starred", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const filteredSessions = sessionQuery.trim()
+    ? sessions.filter((s) =>
+        (s.summary ?? s.name).toLowerCase().includes(sessionQuery.toLowerCase()) ||
+        s.name.toLowerCase().includes(sessionQuery.toLowerCase()))
+    : sessions;
   const [width, setWidth] = useState(() => {
     const saved = localStorage.getItem("reasonix-sidebar-width");
     return saved ? Number(saved) : 280;
@@ -129,6 +147,12 @@ export function Sidebar({
         >
           📝 Notepads
         </button>
+        <button
+          className={`sidebar-tab ${tab === "stats" ? "active" : ""}`}
+          onClick={() => setTab("stats")}
+        >
+          📊 Stats
+        </button>
       </div>
 
       <div className="sidebar-body">
@@ -152,8 +176,15 @@ export function Sidebar({
             <button className="sidebar-new-btn" onClick={onNewChat}>
               {t("sidebar_new_chat")}
             </button>
+            <input
+              className="session-search"
+              type="text"
+              placeholder="🔍 Search sessions..."
+              value={sessionQuery}
+              onChange={(e) => setSessionQuery(e.target.value)}
+            />
             <div className="sidebar-list">
-              {sessions.map((s) => (
+              {filteredSessions.map((s) => (
                 <SessionItem
                   key={s.name}
                   session={s}
@@ -161,10 +192,12 @@ export function Sidebar({
                   onSelect={() => onSelectSession(s.name)}
                   onDelete={() => onDeleteSession(s.name)}
                   onRename={(title) => onRenameSession(s.name, title)}
+                  starred={starred.includes(s.name)}
+                  onToggleStar={() => toggleStar(s.name)}
                 />
               ))}
-              {sessions.length === 0 && (
-                <div className="sidebar-empty">{t("sidebar_no_sessions")}</div>
+              {filteredSessions.length === 0 && (
+                <div className="sidebar-empty">{sessionQuery ? "No matching sessions" : t("sidebar_no_sessions")}</div>
               )}
             </div>
           </div>
@@ -184,6 +217,13 @@ export function Sidebar({
 
         {tab === "notepads" && (
           <NotepadsTab workspaceDir={workspaceDir} />
+        )}
+        {tab === "stats" && (
+          <StatsTab
+            usage={usage}
+            messageCount={sessions.reduce((sum, s) => sum + s.messageCount, 0)}
+            toolCalls={[]}
+          />
         )}
       </div>
       <div className="sidebar-resize-handle" onMouseDown={onMouseDown} />
@@ -307,12 +347,14 @@ function MemoryTab({ memory, onRemove }: {
 
 // ─── Session item with rename ───
 
-function SessionItem({ session, isActive, onSelect, onDelete, onRename }: {
+function SessionItem({ session, isActive, onSelect, onDelete, onRename, starred, onToggleStar }: {
   session: SessionInfo;
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
   onRename: (title: string) => void;
+  starred: boolean;
+  onToggleStar: () => void;
 }) {
   const { t } = useT();
   const [renaming, setRenaming] = useState(false);
@@ -340,6 +382,7 @@ function SessionItem({ session, isActive, onSelect, onDelete, onRename }: {
 
   return (
     <div className={`sidebar-item ${isActive ? "active" : ""}`} onClick={onSelect}>
+      <button className={`sidebar-star-btn ${starred ? "starred" : ""}`} onClick={(e) => { e.stopPropagation(); onToggleStar(); }} title={starred ? "Unstar" : "Star"}>{starred ? "⭐" : "☆"}</button>
       <div className="sidebar-item-main">
         <span className="sidebar-item-name">{session.summary ?? session.name}</span>
         <span className="sidebar-item-meta">

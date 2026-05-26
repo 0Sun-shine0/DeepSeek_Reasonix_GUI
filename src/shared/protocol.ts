@@ -106,6 +106,7 @@ export type Settings = {
   baseUrl?: string;
   apiKeyPrefix?: string;
   apiKey?: string;
+  systemPrompt?: string;
   workspaceDir: string;
   recentWorkspaces: string[];
   model: string;
@@ -377,6 +378,7 @@ export type RevisionVerdict =
   | { type: "cancelled" };
 
 export type SettingsPatch = {
+  systemPrompt?: string;
   model?: string;
   apiKey?: string;
   reasoningEffort?: "high" | "max";

@@ -1,8 +1,11 @@
 // Editor — Monaco-based code viewer with Cmd+K inline AI editing
 
-import { useState, useRef, useEffect } from "react";
-import Editor, { type OnMount } from "@monaco-editor/react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { detectLanguage, truncate } from "../utils.js";
+import type { OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+
+const MonacoEditor = lazy(() => import("@monaco-editor/react").then((m) => ({ default: m.default })));
 
 type Props = {
   filePath: string;
@@ -61,23 +64,25 @@ export function CodeEditor({ filePath, content, language, visible, onClose, onIn
         <button className="editor-close" onClick={onClose}>✕</button>
       </div>
       <div className="editor-body">
-        <Editor
-          height="100%"
-          language={lang}
-          value={content}
-          theme="vs-dark"
-          onMount={handleMount}
-          options={{
-            readOnly: true,
-            minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-            lineNumbers: "on",
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            wordWrap: "on",
-          }}
-        />
+        <Suspense fallback={<div className="editor-loading">Loading editor...</div>}>
+          <MonacoEditor
+            height="100%"
+            language={lang}
+            value={content}
+            theme="vs-dark"
+            onMount={handleMount}
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              fontSize: 13,
+              fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              wordWrap: "on",
+            }}
+          />
+        </Suspense>
       </div>
       {showInline && (
         <div className="editor-inline">
@@ -104,10 +109,3 @@ export function CodeEditor({ filePath, content, language, visible, onClose, onIn
   );
 }
 
-function detectLanguage(path: string): string {
-  const ext = path.split(".").pop()?.toLowerCase();
-  const map: Record<string, string> = { ts: "typescript", tsx: "typescript", js: "javascript", jsx: "javascript", py: "python", rs: "rust", go: "go", java: "java", css: "css", html: "html", json: "json", md: "markdown", yaml: "yaml", yml: "yaml", toml: "ini", sql: "sql", sh: "shell", bash: "shell" };
-  return map[ext ?? ""] ?? "plaintext";
-}
-
-function truncate(s: string, n: number): string { return s.length > n ? s.slice(0, n) + "..." : s; }

@@ -11,6 +11,7 @@ export function SettingsModal({ settings, onClose, onSave, onOpenDirectory }: Pr
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [model, setModel] = useState(settings.model);
+  const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt ?? "");
   const [preset, setPreset] = useState(settings.preset);
   const [budgetStr, setBudgetStr] = useState(settings.budgetUsd != null ? String(settings.budgetUsd) : "");
   const [editMode, setEditMode] = useState(settings.editMode);
@@ -19,6 +20,7 @@ export function SettingsModal({ settings, onClose, onSave, onOpenDirectory }: Pr
     const patch: SettingsPatch = {};
     if (apiKey.trim()) patch.apiKey = apiKey.trim();
     if (model !== settings.model) patch.model = model;
+    if (systemPrompt !== (settings.systemPrompt ?? "")) patch.systemPrompt = systemPrompt || undefined;
     if (preset !== settings.preset) patch.preset = preset;
     const oldBudget = settings.budgetUsd != null ? String(settings.budgetUsd) : "";
     if (budgetStr !== oldBudget) patch.budgetUsd = budgetStr ? Number(budgetStr) : null;
@@ -52,6 +54,7 @@ export function SettingsModal({ settings, onClose, onSave, onOpenDirectory }: Pr
             <span className="settings-hint">{t("settings_api_hint")}</span>
           </div>
           <div className="settings-field"><label>{t("settings_model")}</label><input type="text" value={model} onChange={(e) => setModel(e.target.value)} /></div>
+          <div className="settings-field"><label>System Prompt</label><textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={3} placeholder="Custom system prompt (leave blank for default)" /></div>
           <div className="settings-field"><label>{t("settings_preset")}</label><select value={preset} onChange={(e) => setPreset(e.target.value as "flash" | "pro")}><option value="flash">{t("settings_preset_flash")}</option><option value="pro">{t("settings_preset_pro")}</option></select></div>
           <div className="settings-field"><label>{t("settings_budget")}</label><input type="number" value={budgetStr} onChange={(e) => setBudgetStr(e.target.value)} placeholder="No limit" min="0" step="0.01" /></div>
           <div className="settings-field"><label>{t("settings_edit_mode")}</label><select value={editMode} onChange={(e) => setEditMode(e.target.value as "review" | "auto" | "yolo")}><option value="review">{t("settings_edit_review")}</option><option value="auto">{t("settings_edit_auto")}</option><option value="yolo">{t("settings_edit_yolo")}</option></select></div>

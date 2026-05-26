@@ -4,6 +4,7 @@ import type { UsageStats } from "../state.js";
 import type { JobInfo } from "../../shared/protocol.js";
 import { Whale } from "./Whale.js";
 import { useT } from "../locale.js";
+import { fmtNum } from "../utils.js";
 
 type Props = {
   model?: string;
@@ -56,10 +57,10 @@ export function StatusBar({ model, ready, busy, usage, balance, runningJobs, git
           </span>
         )}
         <span className="status-item" title={t("status_prompt")}>
-          📥 {fmt(usage.totalPromptTokens)}
+          📥 {fmtNum(usage.totalPromptTokens)}
         </span>
         <span className="status-item" title={t("status_completion")}>
-          📤 {fmt(usage.totalCompletionTokens)}
+          📤 {fmtNum(usage.totalCompletionTokens)}
         </span>
         <span className="status-item status-cost" title={t("status_cost")}>
           💰 {costStr}
@@ -74,8 +75,3 @@ export function StatusBar({ model, ready, busy, usage, balance, runningJobs, git
   );
 }
 
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}

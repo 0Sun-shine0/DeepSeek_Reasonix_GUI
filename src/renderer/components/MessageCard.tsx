@@ -13,14 +13,16 @@ type Props = {
   onRetry: () => void;
   onEditResend: (text: string) => void;
   onRegenerate?: () => void;
+  onDebate?: () => void;
   onFixError?: (errorMsg: string) => void;
 };
 
-export function MessageCard({ message, onDismissError, onCopyMessage, onRetry, onEditResend, onRegenerate, onFixError }: Props) {
+export function MessageCard({ message, onDismissError, onCopyMessage, onRetry, onEditResend, onRegenerate, onDebate, onFixError }: Props) {
   const { t } = useT();
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
+  const [showReasoning, setShowReasoning] = useState(false);
 
   const handleCopy = useCallback(() => { onCopyMessage(message); }, [message, onCopyMessage]);
   const handleEditStart = useCallback(() => {
@@ -42,6 +44,9 @@ export function MessageCard({ message, onDismissError, onCopyMessage, onRetry, o
       )}
       {onRegenerate && (
         <button className="msg-action-btn" onClick={onRegenerate} title="Regenerate response">♻️</button>
+      )}
+      {onDebate && (
+        <button className="msg-action-btn" onClick={onDebate} title="Debate this response">⚔️</button>
       )}
     </div>
   );
@@ -79,7 +84,14 @@ export function MessageCard({ message, onDismissError, onCopyMessage, onRetry, o
           <div className="msg-content">
             {message.segments.map((seg, i) => {
               if (seg.kind === "text") return (<div key={i} className="seg-text"><Markdown>{seg.text}</Markdown></div>);
-              if (seg.kind === "reasoning") return (<details key={i} className="seg-reasoning"><summary>{t("msg_thinking")}</summary><pre>{seg.text}</pre></details>);
+              if (seg.kind === "reasoning") return (
+                <div key={i} className="seg-reasoning">
+                  <div className="seg-reasoning-header" onClick={() => setShowReasoning(!showReasoning)}>
+                    <span>{showReasoning ? "▾" : "▸"} 🧠 {t("msg_thinking")} ({countReasoningSteps(seg.text)})</span>
+                  </div>
+                  {showReasoning && <pre className="seg-reasoning-body">{seg.text}</pre>}
+                </div>
+              );
               return <ToolCallCard key={i} tool={seg} />;
             })}
             {message.pending && <span className="cursor-blink">▌</span>}
@@ -101,4 +113,9 @@ export function MessageCard({ message, onDismissError, onCopyMessage, onRetry, o
     default:
       return null;
   }
+}
+
+function countReasoningSteps(text: string): string {
+  const words = text.trim().split(/\s+/).length;
+  return `${words} words`;
 }

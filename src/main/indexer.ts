@@ -1,37 +1,37 @@
 // Codebase indexer — scans workspace files and builds a searchable index
 
-import { readdirSync, statSync } from "fs";
-import { join } from "path";
-
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", "target", ".next", ".cache", "__pycache__", ".venv", "coverage", ".reasonix"]);
-const MAX_FILES = 5000;
-
+import { Worker } from 'worker_threads';
+import { join } from 'path';
 export type IndexEntry = { path: string; size: number; mtime: number; ext: string; };
 
-export function buildIndex(workspaceDir: string): IndexEntry[] {
-  const entries: IndexEntry[] = [];
-  walk(workspaceDir, workspaceDir, entries);
-  return entries;
-}
+export async function buildIndex(workspaceDir: string): Promise<IndexEntry[]> {
+  return new Promise<IndexEntry[]>((resolve) => {
+    try {
+      const worker = new Worker(new URL('./indexer.worker.ts', import.meta.url), {
+        workerData: { root: workspaceDir },
+      } as any);
 
-function walk(root: string, dir: string, entries: IndexEntry[]) {
-  if (entries.length >= MAX_FILES) return;
-  let items: string[];
-  try { items = readdirSync(dir); } catch { return; }
-  for (const name of items) {
-    if (name.startsWith(".") && name !== ".gitignore") continue;
-    const full = join(dir, name);
-    let st;
-    try { st = statSync(full); } catch { continue; }
-    if (st.isDirectory()) {
-      if (SKIP_DIRS.has(name)) continue;
-      walk(root, full, entries);
-    } else if (st.isFile()) {
-      const rel = full.slice(root.length + 1).replace(/\\/g, "/");
-      const ext = name.includes(".") ? name.split(".").pop()?.toLowerCase() ?? "" : "";
-      entries.push({ path: rel, size: st.size, mtime: st.mtimeMs, ext });
+      const timeout = setTimeout(() => {
+        try { worker.terminate(); } catch {}
+        resolve([]);
+      }, 30_000);
+
+      worker.on('message', (msg: any) => {
+        clearTimeout(timeout);
+        if (msg && msg.success && Array.isArray(msg.entries)) {
+          resolve(msg.entries as IndexEntry[]);
+        } else {
+          resolve([]);
+        }
+      });
+
+      worker.on('error', () => { clearTimeout(timeout); resolve([]); });
+      worker.on('exit', () => { /* noop */ });
+    } catch {
+      // Fallback: return empty index on failure
+      resolve([]);
     }
-  }
+  });
 }
 
 export function searchIndex(entries: IndexEntry[], query: string): IndexEntry[] {

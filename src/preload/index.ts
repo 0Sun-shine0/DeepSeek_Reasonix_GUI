@@ -82,6 +82,10 @@ const api = {
     return ipcRenderer.invoke("git:branch", dirPath);
   },
 
+  /** Auto-launch */
+  setAutoLaunch: (enable: boolean): void => ipcRenderer.send("app:setAutoLaunch", enable),
+  getAutoLaunch: (): Promise<boolean> => ipcRenderer.invoke("app:getAutoLaunch"),
+
   /** Notepads */
   notepadList: (ws: string): Promise<string[]> => ipcRenderer.invoke("notepads:list", ws),
   notepadRead: (ws: string, name: string): Promise<string | null> => ipcRenderer.invoke("notepads:read", ws, name),

@@ -1,6 +1,6 @@
 // Composer — bottom input bar
 
-import { useState, useRef, useEffect, type KeyboardEvent } from "react";
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent, type DragEvent, type ClipboardEvent } from "react";
 import { useT } from "../locale.js";
 import { AtPicker } from "./AtPicker.js";
 import type { ContextFile } from "../state.js";
@@ -28,6 +28,8 @@ export function Composer({
   const [showAtPicker, setShowAtPicker] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [gitFiles, setGitFiles] = useState<{ path: string; kind: string }[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   // Detect @ trigger
   useEffect(() => {
@@ -45,9 +47,43 @@ export function Composer({
 
   useEffect(() => { inputRef.current?.focus(); }, [busy, inputRef]);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [busy]);
+  // Drag-drop files
+  const handleDragOver = useCallback((e: DragEvent) => { e.preventDefault(); setDragOver(true); }, []);
+  const handleDragLeave = useCallback(() => setDragOver(false), []);
+  const handleDrop = useCallback((e: DragEvent) => {
+    e.preventDefault(); setDragOver(false);
+    const paths = Array.from(e.dataTransfer.files).map((f: any) => f.path).filter(Boolean);
+    if (paths.length > 0) setText((prev) => prev + "\n@" + paths.join(" @"));
+  }, []);
+
+  // Image paste
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items);
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (blob) {
+          const reader = new FileReader();
+          reader.onload = () => { setText((prev) => prev + "\n[Image attached]"); inputRef.current?.focus(); };
+          reader.readAsDataURL(blob);
+        }
+        return;
+      }
+    }
+  }, []);
+
+  // Prompt templates
+  const templates = [
+    { label: "🎯 Code Review", text: "Please review the following code for bugs, security issues, and style problems:" },
+    { label: "🧪 Write Tests", text: "Write comprehensive unit tests for the following code:" },
+    { label: "📝 Document", text: "Write clear JSDoc documentation for the following code:" },
+    { label: "🔄 Refactor", text: "Refactor the following code to improve readability and maintainability:" },
+    { label: "🐛 Debug", text: "I'm encountering the following error. Help me debug it:" },
+    { label: "📊 Explain", text: "Explain the following code in detail, line by line:" },
+    { label: "⚡ Optimize", text: "Optimize the following code for performance:" },
+    { label: "🔐 Security Audit", text: "Perform a security audit on the following code:" },
+  ];
 
   useEffect(() => {
     if (injectedText) {
@@ -58,6 +94,7 @@ export function Composer({
   }, [injectedText, onConsumeInjected]);
 
   const handleSend = () => {
+    if (busy) return;
     const trimmed = text.trim();
     if (!trimmed) return;
     onSend(trimmed);
@@ -89,14 +126,18 @@ export function Composer({
 
   return (
     <div className="composer">
-      <div className="composer-toolbar">
-        <button
-          className="composer-btn"
-          title={sidebarVisible ? t("composer_sidebar") : t("composer_sidebar")}
-          onClick={onToggleSidebar}
-        >
-          ☰
-        </button>
+      <div className="composer-toolbar" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+        <button className="composer-btn" title={sidebarVisible ? t("composer_sidebar") : t("composer_sidebar")} onClick={onToggleSidebar}>☰</button>
+        <div style={{ position: "relative" }}>
+          <button className="composer-btn" title="Prompt templates" onClick={() => setShowTemplates(!showTemplates)}>📋</button>
+          {showTemplates && (
+            <div className="template-dropdown" onClick={(e) => e.stopPropagation()}>
+              {templates.map((tpl, i) => (
+                <div key={i} className="template-item" onClick={() => { setText((p) => p ? `${tpl.text}\n${p}` : tpl.text); setShowTemplates(false); inputRef.current?.focus(); }}>{tpl.label}</div>
+              ))}
+            </div>
+          )}
+        </div>
         <button className="composer-btn" title={t("composer_open_folder")} onClick={onOpenFolder}>
           📂
         </button>
@@ -110,10 +151,8 @@ export function Composer({
           className="composer-input"
           placeholder={busy ? t("composer_busy") : t("composer_placeholder")}
           value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            autoResize();
-          }}
+          onChange={(e) => { setText(e.target.value); autoResize(); }}
+          onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           disabled={busy}
           rows={1}

@@ -3,10 +3,15 @@
 import { ipcMain, dialog, shell } from "electron";
 import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "fs";
 import { join, basename, relative } from "path";
+import { validateWorkspaceDir, validateNotepadName, validatePathAbsolute, validatePathWithinWorkspace, validateSearchQuery } from "./validators.js";
 import { exec } from "child_process";
 import { sendToReasonix } from "./rpc.js";
 import type { IncomingEvent, OutgoingCommand } from "../shared/protocol.js";
-import { buildIndex, searchIndex } from "./indexer.js";
+import { buildIndex, searchIndex, type IndexEntry } from "./indexer.js";
+
+// Cache the index per workspace to avoid rebuilding on every search
+let indexCache: IndexEntry[] | null = null;
+let indexCacheWorkspace: string | null = null;
 
 export type FileTreeEntry = {
   name: string;
@@ -30,17 +35,18 @@ function listDirectoryTree(root: string, maxDepth: number = 4, depth: number = 0
 
       const fullPath = join(root, name);
       try {
-        const stat = statSync(fullPath);
-        if (stat.isDirectory()) {
+        const st = statSync(fullPath);
+        if (st.isDirectory()) {
           const children = depth < maxDepth - 1 ? listDirectoryTree(fullPath, maxDepth, depth + 1) : [];
           result.push({ name, path: fullPath, kind: "dir", children });
-        } else if (stat.isFile()) {
+        } else if (st.isFile()) {
           result.push({ name, path: fullPath, kind: "file" });
         }
       } catch {
         // Permission error — skip
       }
     }
+
 
     // Sort: dirs first, then alphabetical
     result.sort((a, b) => {
@@ -70,11 +76,13 @@ export function registerIpcHandlers() {
 
   // Renderer requests a directory tree listing
   ipcMain.handle("fs:listDirectory", async (_event, dirPath: string) => {
+    if (!validatePathAbsolute(dirPath)) return [];
     return listDirectoryTree(dirPath);
   });
 
   // Renderer requests git status
   ipcMain.handle("git:status", async (_event, dirPath: string) => {
+    if (!validatePathAbsolute(dirPath)) return [];
     return getGitStatus(dirPath);
   });
 
@@ -85,36 +93,50 @@ export function registerIpcHandlers() {
 
   // Scan .reasonix/rules/ for glob-scoped rules
   ipcMain.handle("rules:getMatching", async (_event, filePath: string, workspaceDir: string) => {
+    if (!validateWorkspaceDir(workspaceDir) || !validatePathWithinWorkspace(filePath, workspaceDir)) return [];
     return getMatchingRules(workspaceDir, filePath);
   });
 
   // Git branch name
   ipcMain.handle("git:branch", async (_event, dirPath: string) => {
+    if (!validatePathAbsolute(dirPath)) return null;
     return getGitBranch(dirPath);
   });
 
   // Notepads CRUD
   ipcMain.handle("notepads:list", async (_event, workspaceDir: string) => {
+    if (!validateWorkspaceDir(workspaceDir)) return [];
     return listNotepads(workspaceDir);
   });
   ipcMain.handle("notepads:read", async (_event, workspaceDir: string, name: string) => {
+    if (!validateWorkspaceDir(workspaceDir) || !validateNotepadName(name)) return null;
     return readNotepad(workspaceDir, name);
   });
   ipcMain.handle("notepads:write", async (_event, workspaceDir: string, name: string, content: string) => {
+    if (!validateWorkspaceDir(workspaceDir) || !validateNotepadName(name)) return;
     writeNotepad(workspaceDir, name, content);
   });
   ipcMain.handle("notepads:delete", async (_event, workspaceDir: string, name: string) => {
+    if (!validateWorkspaceDir(workspaceDir) || !validateNotepadName(name)) return;
     deleteNotepad(workspaceDir, name);
   });
 
-  // Codebase indexing
+  // Codebase indexing with cache
   ipcMain.handle("index:build", async (_event, workspaceDir: string) => {
-    return buildIndex(workspaceDir);
+    if (!validateWorkspaceDir(workspaceDir)) return [];
+    indexCache = await buildIndex(workspaceDir);
+    indexCacheWorkspace = workspaceDir;
+    return indexCache;
   });
   ipcMain.handle("index:search", async (_event, workspaceDir: string, query: string) => {
-    const idx = buildIndex(workspaceDir);
-    return searchIndex(idx, query);
+    if (!validateWorkspaceDir(workspaceDir) || !validateSearchQuery(query)) return [];
+    if (indexCacheWorkspace !== workspaceDir || !indexCache) {
+      indexCache = await buildIndex(workspaceDir);
+      indexCacheWorkspace = workspaceDir;
+    }
+    return searchIndex(indexCache, query);
   });
+  ipcMain.on("index:clear", () => { indexCache = null; indexCacheWorkspace = null; });
 }
 
 // ─── Glob Rules Scanner ───
@@ -216,6 +238,8 @@ function deleteNotepad(workspaceDir: string, name: string): void {
 }
 
 function safeName(name: string): string { return name.replace(/[^a-zA-Z0-9_\-.]/g, "_"); }
+
+// workspace validation moved to validators.ts
 
 function matchGlob(pattern: string, path: string): boolean {
   // Simple glob matching: convert ** to .* and * to [^/]*

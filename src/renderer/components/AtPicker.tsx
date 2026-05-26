@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, type KeyboardEvent } from "react";
 import type { ContextFile } from "../state.js";
+import { shortPath, baseName } from "../utils.js";
 
-type Source = { type: "file" | "context" | "git"; items: PickerItem[] };
 type PickerItem = { label: string; path: string; icon: string; meta?: string };
 
 type Props = {
@@ -57,36 +57,29 @@ export function AtPicker({ contextFiles, workspaceDir, gitFiles, onSelect, onClo
   );
 }
 
-function buildSources(contextFiles: ContextFile[], workspaceDir: string | null, gitFiles: { path: string; kind: string }[]): Source[] {
-  const sources: Source[] = [];
-
-  // Context files
+function buildSources(contextFiles: ContextFile[], workspaceDir: string | null, gitFiles: { path: string; kind: string }[]): { type: string; items: PickerItem[] }[] {
+  const sources: { type: string; items: PickerItem[] }[] = [];
   if (contextFiles.length > 0) {
     sources.push({
       type: "context",
-      items: contextFiles.map((cf) => ({ label: cfPath(cf.path), path: cf.path, icon: cf.status === "modified" ? "✏️" : "📖", meta: "in context" })),
+      items: contextFiles.map((cf) => ({ label: baseName(cf.path), path: cf.path, icon: cf.status === "modified" ? "✏️" : "📖", meta: "in context" })),
     });
   }
-
-  // Git changed files
   if (gitFiles.length > 0) {
     sources.push({
       type: "git",
-      items: gitFiles.map((g) => ({ label: cfPath(g.path), path: g.path, icon: gitIcon(g.kind), meta: g.kind })),
+      items: gitFiles.map((g) => ({ label: baseName(g.path), path: g.path, icon: gitIcon(g.kind), meta: g.kind })),
     });
   }
-
-  // Workspace root
   if (workspaceDir) {
     sources.push({
       type: "file",
       items: [{ label: "📁 Workspace", path: workspaceDir, icon: "📂", meta: "root" }],
     });
   }
-
   return sources;
 }
 
-function cfPath(p: string): string { const s = p.replace(/\\/g, "/").split("/"); return s.pop() ?? p; }
-function shortPath(p: string): string { const s = p.replace(/\\/g, "/"); return s.length > 40 ? "..." + s.slice(-37) : s; }
-function gitIcon(kind: string): string { switch (kind) { case "modified": return "M"; case "added": return "A"; case "deleted": return "D"; case "untracked": return "?"; default: return "•"; } }
+function gitIcon(kind: string): string {
+  switch (kind) { case "modified": return "M"; case "added": return "A"; case "deleted": return "D"; case "untracked": return "?"; default: return "•"; }
+}

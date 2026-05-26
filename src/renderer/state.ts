@@ -455,12 +455,14 @@ function applyIncoming(state: State, ev: IncomingEvent): State {
       return { ...state, retryText: ev.text, retryNonce: state.retryNonce + 1 };
 
     case "$session_empty":
-      return { ...state, currentSession: ev.name, messages: [], busy: false };
+      return { ...state, currentSession: ev.name, messages: [], busy: false, activePlan: null };
 
     case "$session_loaded": {
+      let turnCounter = 0;
       const restored: ChatMessage[] = (ev.messages ?? []).map((m) => {
         if (m.kind === "user") {
-          return { kind: "user", text: m.text, turn: 0 };
+          turnCounter += 1;
+          return { kind: "user", text: m.text, turn: turnCounter };
         }
         if (m.kind === "assistant") {
           return {

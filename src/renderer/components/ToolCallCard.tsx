@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { AssistantSegment } from "../state.js";
 import { DiffCard } from "./DiffCard.js";
 import { useT, type TFunction } from "../locale.js";
+import { shortPath, truncate, formatJson } from "../utils.js";
 
 type Props = { tool: Extract<AssistantSegment, { kind: "tool" }>; };
 
@@ -59,9 +60,6 @@ function ShellResult({ tool }: Props) {
 
 function parsePath(args: string): string | null { try { const a = JSON.parse(args); return typeof a.path === "string" ? a.path : null; } catch { return null; } }
 function parseShellCmd(args: string): string { try { const a = JSON.parse(args); return (a.command && typeof a.command === "string") ? a.command : JSON.stringify(a); } catch { return args; } }
-function shortPath(p: string): string { const parts = p.replace(/\\/g, "/").split("/"); return parts.length <= 2 ? p : `.../${parts.slice(-2).join("/")}`; }
-function formatJson(raw: string): string { try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; } }
-function truncate(text: string, max: number): string { if (text.length <= max) return text; return text.slice(0, max) + `\n... (${text.length - max} more chars)`; }
 
 const EDIT_TOOLS = new Set(["edit_file", "multi_edit", "write_file"]);
 const READ_TOOLS = new Set(["read_file", "get_symbols", "find_in_code"]);
